@@ -33,6 +33,9 @@ ENV_FILE = re.compile(r"^\.env(\..+)?$")
 ENV_OK = (".example", ".sample", ".template", ".dist")
 SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "__pycache__", "dist", "build", ".idea", ".vscode"}
 MAX_BYTES = 1_000_000
+CROSS = "✖"
+CHECK = "✔"
+DOT = "•"
 
 USE_COLOR = sys.stdout.isatty()
 
@@ -43,8 +46,8 @@ def paint(code, text):
 
 def mask(value):
     if len(value) <= 8:
-        return "\u2022" * 6
-    return value[:4] + "\u2022" * min(12, len(value) - 8) + value[-4:]
+        return DOT * 6
+    return value[:4] + DOT * min(12, len(value) - 8) + value[-4:]
 
 
 def entropy(s):
@@ -62,7 +65,7 @@ def iter_files(root, staged):
     if staged:
         names = git("diff", "--cached", "--name-only", "--diff-filter=ACM").stdout.splitlines()
         for name in names:
-            data = subprocess.run(["git", "show", f":{name}"], capture_output=True).stdout
+            data = subprocess.run(["git", "show", ":" + name], capture_output=True).stdout
             yield name, data
         return
     for folder, dirs, files in os.walk(root):
@@ -108,9 +111,9 @@ def install_hook():
     hook = os.path.join(root, ".git", "hooks", "pre-commit")
     script = os.path.abspath(__file__)
     with open(hook, "w") as f:
-        f.write(f'#!/bin/sh\npython3 "{script}" --staged\n')
+        f.write('#!/bin/sh\npython3 "' + script + '" --staged\n')
     os.chmod(hook, 0o755)
-    print(paint("32", "\u2714 pre-commit hook installed."), "Leaky commits will be blocked.")
+    print(paint("32", CHECK + " pre-commit hook installed."), "Leaky commits will be blocked.")
 
 
 def main():
@@ -135,7 +138,7 @@ def main():
         sys.exit(1 if findings else 0)
 
     if not findings:
-        print(paint("32;1", f"\u2714 Clean!"), f"Scanned {count} files, found nothing scary.")
+        print(paint("32;1", CHECK + " Clean!"), "Scanned %d files, found nothing scary." % count)
         return
 
     current = None
@@ -143,9 +146,9 @@ def main():
         if path != current:
             print("\n" + paint("1;4", path))
             current = path
-        where = f"line {line}" if line else "file"
-        print(f"  {paint('31', '\u2716')} {paint('33', rule):<30} {paint('90', where):<14} {preview}")
-    print("\n" + paint("31;1", f"{len(findings)} potential secret(s) in {count} files."))
+        where = "line %d" % line if line else "file"
+        print("  %s %s %s %s" % (paint("31", CROSS), paint("33", rule.ljust(22)), paint("90", where.ljust(10)), preview))
+    print("\n" + paint("31;1", "%d potential secret(s) in %d files." % (len(findings), count)))
     print(paint("90", "False alarm? Add  envguard:ignore  as a comment on that line."))
     sys.exit(1)
 
